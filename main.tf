@@ -56,20 +56,20 @@ resource "aws_ecs_task_definition" "minecraft_task" {
           "value" : "TRUE"
         }
       ],
-      "memory" : 1024,
-      "cpu" : 512
+      "memory" : 2048,
+      "cpu" : 1024
     }
   ])
 
   requires_compatibilities = ["FARGATE"]
   network_mode             = "awsvpc"
-  memory                   = 1024
-  cpu                      = 512
+  memory                   = 2048
+  cpu                      = 1024
 }
 
 
 resource "aws_vpc" "minecraft_vpc" {
-  cidr_block           = "10.0.0.0/16"
+  cidr_block           = "10.0.0.0/24"
   enable_dns_hostnames = true
   enable_dns_support   = true
 }
@@ -78,16 +78,10 @@ resource "aws_internet_gateway" "minecraft_igw" {
   vpc_id = aws_vpc.minecraft_vpc.id
 }
 
-resource "aws_subnet" "subnet_a" {
+resource "aws_subnet" "minecraft_subnet" {
   vpc_id            = aws_vpc.minecraft_vpc.id
-  cidr_block        = "10.0.1.0/24"
+  cidr_block        = "10.0.0.0/24"
   availability_zone = "${var.region}a"
-}
-
-resource "aws_subnet" "subnet_b" {
-  vpc_id            = aws_vpc.minecraft_vpc.id
-  cidr_block        = "10.0.2.0/24"
-  availability_zone = "${var.region}b"
 }
 
 resource "aws_route_table" "minecraft_rt" {
@@ -100,13 +94,8 @@ resource "aws_route" "minecraft_route" {
   gateway_id             = aws_internet_gateway.minecraft_igw.id
 }
 
-resource "aws_route_table_association" "subnet_a_association" {
-  subnet_id      = aws_subnet.subnet_a.id
-  route_table_id = aws_route_table.minecraft_rt.id
-}
-
-resource "aws_route_table_association" "subnet_b_association" {
-  subnet_id      = aws_subnet.subnet_b.id
+resource "aws_route_table_association" "minecraft_subnet_association" {
+  subnet_id      = aws_subnet.minecraft_subnet.id
   route_table_id = aws_route_table.minecraft_rt.id
 }
 
@@ -115,8 +104,7 @@ resource "aws_lb" "load_balancer" {
   name               = "load-balancer"
   load_balancer_type = "network"
   subnets = [
-    aws_subnet.subnet_a.id,
-    aws_subnet.subnet_b.id
+    aws_subnet.minecraft_subnet.id,
   ]
 
   security_groups = [aws_security_group.lb_security_group.id]
@@ -188,7 +176,7 @@ resource "aws_ecs_service" "minecraft_service" {
   }
 
   network_configuration {
-    subnets          = [aws_subnet.subnet_a.id, aws_subnet.subnet_b.id]
+    subnets          = [aws_subnet.minecraft_subnet.id]
     assign_public_ip = true
     security_groups  = [aws_security_group.minecraft_security_group.id]
   }
